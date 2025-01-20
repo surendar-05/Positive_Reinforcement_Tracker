@@ -3,6 +3,8 @@ export interface Action {
   title: string;
   timestamp: Date;
   category: string;
+  deadline?: Date;
+  completed: boolean;
 }
 
 export interface Goal {
@@ -11,11 +13,21 @@ export interface Goal {
   target: number;
   current: number;
   category: string;
-  deadline?: Date;
+  deadline: Date;
+  completed: boolean;
 }
 
 export interface Category {
   id: string;
   name: string;
   color: string;
+}
+
+export interface Reward {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlocked: boolean;
+  isDefault?: boolean;
 }
