@@ -1,9 +1,10 @@
 // Local Storage Keys
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   ACTIONS: 'tracker_actions',
   GOALS: 'tracker_goals',
   CATEGORIES: 'tracker_categories',
   REWARDS: 'tracker_rewards',
+  STREAKS: 'tracker_streaks',
 };
 
 // Load data from localStorage
@@ -37,5 +38,3 @@ export const checkDeadlines = (actions: Action[], goals: Goal[]) => {
   
   return { overdueActions, overdueGoals };
 };
-
-export { STORAGE_KEYS };

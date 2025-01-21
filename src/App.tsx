@@ -7,9 +7,10 @@ import { Settings } from './components/Settings';
 import { Rewards, DEFAULT_REWARDS } from './components/Rewards';
 import { Toast } from './components/Toast';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/Tabs';
-import { Action, Goal, Category, Reward } from './types';
+import { Action, Goal, Category, Reward, Streak } from './types';
 import { playSuccessSound, playActionSound } from './utils/sound';
 import { loadFromStorage, saveToStorage, STORAGE_KEYS, checkDeadlines } from './utils/storage';
+import { calculateStreak } from './utils/streak';
 
 interface Toast {
   message: string;
@@ -25,15 +26,33 @@ function App() {
   );
   const [categories, setCategories] = useState<Category[]>(() => 
     loadFromStorage(STORAGE_KEYS.CATEGORIES, [
-      { id: '1', name: 'Exercise', color: '#22c55e' },
-      { id: '2', name: 'Learning', color: '#3b82f6' },
-      { id: '3', name: 'Mindfulness', color: '#a855f7' },
+      { id: '1', name: 'Exercise', color: '#22c55e', icon: 'dumbbell' },
+      { id: '2', name: 'Learning', color: '#3b82f6', icon: 'book-open' },
+      { id: '3', name: 'Mindfulness', color: '#a855f7', icon: 'brain' },
     ])
   );
   const [rewards, setRewards] = useState<Reward[]>(() =>
     loadFromStorage(STORAGE_KEYS.REWARDS, DEFAULT_REWARDS)
   );
+  const [streaks, setStreaks] = useState<Streak[]>(() =>
+    loadFromStorage(STORAGE_KEYS.STREAKS, [])
+  );
   const [toast, setToast] = useState<Toast | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  // Handle offline/online status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Save to localStorage whenever data changes
   useEffect(() => {
@@ -52,14 +71,30 @@ function App() {
     saveToStorage(STORAGE_KEYS.REWARDS, rewards);
   }, [rewards]);
 
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.STREAKS, streaks);
+  }, [streaks]);
+
   // Check deadlines periodically
   useEffect(() => {
     const checkOverdue = () => {
       const { overdueActions, overdueGoals } = checkDeadlines(actions, goals);
       if (overdueActions.length > 0 || overdueGoals.length > 0) {
         showToast(`You have ${overdueActions.length + overdueGoals.length} overdue items!`, 'error');
+        // Request notification permission and show notification
+        if (Notification.permission === 'granted') {
+          new Notification('Overdue Items Alert!', {
+            body: `You have ${overdueActions.length + overdueGoals.length} overdue items that need attention.`,
+            icon: '/vite.svg'
+          });
+        }
       }
     };
+
+    // Request notification permission
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
 
     checkOverdue();
     const interval = setInterval(checkOverdue, 60000); // Check every minute
@@ -80,6 +115,22 @@ function App() {
     setActions(prev => [newAction, ...prev]);
     playActionSound();
     showToast('Action added successfully!', 'success');
+
+    // Update streaks
+    const categoryStreak = streaks.find(s => s.categoryId === action.category);
+    if (categoryStreak) {
+      const updatedStreak = calculateStreak(categoryStreak, new Date());
+      setStreaks(prev => 
+        prev.map(s => s.categoryId === action.category ? updatedStreak : s)
+      );
+    } else {
+      setStreaks(prev => [...prev, {
+        categoryId: action.category,
+        currentStreak: 1,
+        longestStreak: 1,
+        lastActionDate: new Date(),
+      }]);
+    }
   };
 
   const editAction = (id: string, updates: Partial<Action>) => {
@@ -183,8 +234,22 @@ function App() {
 
   return (
     <Layout>
+      {isOffline && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 fixed top-0 right-0 left-0 z-50">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <span className="text-yellow-400">⚠️</span>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                You are currently offline. Changes will be saved locally and synced when you're back online.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <Tabs defaultValue="dashboard" className="w-full max-w-6xl mx-auto">
-        <TabsList className="grid w-full grid-cols-5 mb-8">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-8">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="actions">Actions</TabsTrigger>
           <TabsTrigger value="goals">Goals</TabsTrigger>
@@ -193,7 +258,12 @@ function App() {
         </TabsList>
 
         <TabsContent value="dashboard">
-          <Dashboard actions={actions} goals={goals} categories={categories} />
+          <Dashboard 
+            actions={actions} 
+            goals={goals} 
+            categories={categories}
+            streaks={streaks} 
+          />
         </TabsContent>
 
         <TabsContent value="actions">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { PlusCircle, Pencil, Trash2, CheckCircle, Calendar } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, CheckCircle, Calendar, Sparkles, Loader2 } from 'lucide-react';
 import { Action, Category } from '../types';
+import { generateTaskSuggestions } from '../utils/ai';
 
 interface ActionLogProps {
   actions: Action[];
@@ -23,6 +24,8 @@ export function ActionLog({
   const [selectedCategory, setSelectedCategory] = useState(categories[0]?.id || '');
   const [deadline, setDeadline] = useState('');
   const [editingAction, setEditingAction] = useState<Action | null>(null);
+  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<{ title: string; category: string }>>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +49,28 @@ export function ActionLog({
     }
   };
 
+  const handleGetSuggestions = async () => {
+    setIsGeneratingSuggestions(true);
+    try {
+      const suggestions = await generateTaskSuggestions(
+        categories,
+        actions.slice(0, 10),
+        []
+      );
+      setSuggestions(suggestions.filter(s => s.type === 'action'));
+    } catch (error) {
+      console.error('Error getting suggestions:', error);
+    } finally {
+      setIsGeneratingSuggestions(false);
+    }
+  };
+
+  const applySuggestion = (suggestion: { title: string; category: string }) => {
+    setNewAction(suggestion.title);
+    setSelectedCategory(suggestion.category);
+    setSuggestions([]);
+  };
+
   const startEditing = (action: Action) => {
     setEditingAction(action);
     setNewAction(action.title);
@@ -64,31 +89,45 @@ export function ActionLog({
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            type="text"
-            value={newAction}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAction(e.target.value)}
-            placeholder="What did you accomplish?"
-            className="col-span-2 rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-4 py-2"
-            required
-          />
+          <div className="col-span-2 relative">
+            <input
+              type="text"
+              value={newAction}
+              onChange={(e) => setNewAction(e.target.value)}
+              placeholder="What did you accomplish?"
+              className="w-full rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-4 py-2"
+              required
+            />
+            <button
+              type="button"
+              onClick={handleGetSuggestions}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-500"
+              title="Get AI suggestions"
+            >
+              {isGeneratingSuggestions ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Sparkles className="h-5 w-5" />
+              )}
+            </button>
+          </div>
           <select
             value={selectedCategory}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedCategory(e.target.value)}
+            onChange={(e) => setSelectedCategory(e.target.value)}
             className="rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-4 py-2"
             required
           >
             <option value="">Select Category</option>
-            {categories.map((category: Category) => (
+            {categories.map((category) => (
               <option key={category.id} value={category.id}>
-          {category.name}
+                {category.name}
               </option>
             ))}
           </select>
           <input
             type="datetime-local"
             value={deadline}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDeadline(e.target.value)}
+            onChange={(e) => setDeadline(e.target.value)}
             className="rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-4 py-2"
           />
           <div className="col-span-4 flex gap-4">
@@ -120,6 +159,24 @@ export function ActionLog({
             )}
           </div>
         </div>
+        
+        {suggestions.length > 0 && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Suggestions:</h4>
+            <div className="space-y-2">
+              {suggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => applySuggestion(suggestion)}
+                  className="w-full text-left px-4 py-2 bg-white rounded-md shadow-sm hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {suggestion.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </form>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">

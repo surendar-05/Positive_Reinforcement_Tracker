@@ -21,6 +21,7 @@ export interface Category {
   id: string;
   name: string;
   color: string;
+  icon: string;
 }
 
 export interface Reward {
@@ -30,4 +31,11 @@ export interface Reward {
   icon: string;
   unlocked: boolean;
   isDefault?: boolean;
+}
+
+export interface Streak {
+  categoryId: string;
+  currentStreak: number;
+  longestStreak: number;
+  lastActionDate: Date;
 }

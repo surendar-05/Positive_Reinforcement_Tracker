@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { PlusCircle, Pencil, Trash2, ChevronRight, Calendar } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, ChevronRight, Calendar, Sparkles, Loader2 } from 'lucide-react';
 import { Goal, Category } from '../types';
+import { generateTaskSuggestions } from '../utils/ai';
 
 interface GoalsProps {
   goals: Goal[];
@@ -24,6 +25,42 @@ export function Goals({
   const [targetValue, setTargetValue] = useState<number>(1);
   const [deadline, setDeadline] = useState('');
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<{
+    title: string;
+    category: string;
+    target?: number;
+    deadline?: string;
+  }>>([]);
+
+  const handleGetSuggestions = async () => {
+    setIsGeneratingSuggestions(true);
+    try {
+      const suggestions = await generateTaskSuggestions(
+        categories,
+        [],
+        goals
+      );
+      setSuggestions(suggestions.filter(s => s.type === 'goal'));
+    } catch (error) {
+      console.error('Error getting suggestions:', error);
+    } finally {
+      setIsGeneratingSuggestions(false);
+    }
+  };
+
+  const applySuggestion = (suggestion: {
+    title: string;
+    category: string;
+    target?: number;
+    deadline?: string;
+  }) => {
+    setNewGoal(suggestion.title);
+    setSelectedCategory(suggestion.category);
+    if (suggestion.target) setTargetValue(suggestion.target);
+    if (suggestion.deadline) setDeadline(suggestion.deadline);
+    setSuggestions([]);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,14 +107,28 @@ export function Goals({
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <input
-            type="text"
-            value={newGoal}
-            onChange={(e) => setNewGoal(e.target.value)}
-            placeholder="What's your goal?"
-            className="lg:col-span-2 rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-4 py-2"
-            required
-          />
+          <div className="lg:col-span-2 relative">
+            <input
+              type="text"
+              value={newGoal}
+              onChange={(e) => setNewGoal(e.target.value)}
+              placeholder="What's your goal?"
+              className="w-full rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-4 py-2"
+              required
+            />
+            <button
+              type="button"
+              onClick={handleGetSuggestions}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-500"
+              title="Get AI suggestions"
+            >
+              {isGeneratingSuggestions ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Sparkles className="h-5 w-5" />
+              )}
+            </button>
+          </div>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -135,6 +186,31 @@ export function Goals({
             )}
           </div>
         </div>
+
+        {suggestions.length > 0 && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Suggestions:</h4>
+            <div className="space-y-2">
+              {suggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => applySuggestion(suggestion)}
+                  className="w-full text-left px-4 py-2 bg-white rounded-md shadow-sm hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <div className="flex justify-between items-center">
+                    <span>{suggestion.title}</span>
+                    {suggestion.target && (
+                      <span className="text-sm text-gray-500">
+                        Target: {suggestion.target}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </form>
 
       <div className="space-y-4">
