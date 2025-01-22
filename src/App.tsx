@@ -6,11 +6,13 @@ import { Goals } from './components/Goals';
 import { Settings } from './components/Settings';
 import { Rewards, DEFAULT_REWARDS } from './components/Rewards';
 import { Toast } from './components/Toast';
+import { Auth } from './components/Auth';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/Tabs';
 import { Action, Goal, Category, Reward, Streak } from './types';
 import { playSuccessSound, playActionSound } from './utils/sound';
 import { loadFromStorage, saveToStorage, STORAGE_KEYS, checkDeadlines } from './utils/storage';
 import { calculateStreak } from './utils/streak';
+import { useAuthStore } from './store/authStore';
 
 interface Toast {
   message: string;
@@ -18,6 +20,7 @@ interface Toast {
 }
 
 function App() {
+  const { user, loading, initialize } = useAuthStore();
   const [actions, setActions] = useState<Action[]>(() => 
     loadFromStorage(STORAGE_KEYS.ACTIONS, [])
   );
@@ -39,6 +42,10 @@ function App() {
   );
   const [toast, setToast] = useState<Toast | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
 
   // Handle offline/online status
   useEffect(() => {
@@ -231,6 +238,18 @@ function App() {
     showToast('Reward claimed successfully!', 'success');
     playSuccessSound();
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Auth />;
+  }
 
   return (
     <Layout>
